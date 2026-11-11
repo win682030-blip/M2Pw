@@ -1,334 +1,80 @@
-<!DOCTYPE html>
-<html lang="my">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Our Pink Elephant</title>
-    <!-- Phaser 3 Engine -->
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
+// Game Config
+const config = {
+    type: Phaser.AUTO,
+    width: 360,
+    height: 740,
+    backgroundColor: '#ffffff',
+    scene: { preload: preload, create: create, update: update }
+};
+
+let elephant, streakText, expText;
+let streakDays = 258;
+let currentExp = 0;
+let hasFedToday = false;
+
+function preload() {
+    // Assets: ကိုယ်တိုင်ဆွဲထားသော ပုံများနှင့် Sprite များကို ထည့်ရန်
+    this.load.image('pink_elephant', 'assets/pink_elephant.png');
+    this.load.image('sugarcane', 'assets/sugarcane.png');
+    this.load.image('heart', 'assets/heart.png');
+}
+
+function create() {
+    // UI - Streak & Stats
+    streakText = this.add.text(20, 30, `🔥 ${streakDays} ရက်`, { fontSize: '18px', fill: '#ff4500', fontStyle: 'bold' });
+    expText = this.add.text(20, 60, `EXP: ${currentExp}`, { fontSize: '16px', fill: '#333' });
+
+    // Main Pet (ပန်းရောင်ဆင်ပေါက်မလေး)
+    elephant = this.add.sprite(180, 400, 'pink_elephant').setInteractive();
+    elephant.setScale(0.8);
+
+    // လက်ဖြင့် ဖုန်းစခရင်ကို ပွတ်သပ်ထိတွေ့ခြင်း (Touch / Drag Interaction)
+    this.input.setDraggable(elephant);
+    elephant.on('pointermove', function (pointer) {
+        if (pointer.isDown) {
+            // ပွတ်သပ်သည့်အခါ နှလုံးသားရုပ်များ ထွက်လာစေရန်
+            showHeartAnimation(this.scene, pointer.x, pointer.y);
         }
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #8ed0f8;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #game-container {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-    </style>
-</head>
-<body>
-    <div id="game-container"></div>
+    });
 
-    <script>
-        // 1. Firebase ချိတ်ဆက်မှု
-        const firebaseConfig = {
-            databaseURL: "https://soepaingthu-default-rtdb.asia-southeast1.firebasedatabase.app"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        const petRef = db.ref("shared_pet");
+    // ကြံချောင်း အစာကျွေးခလုတ်
+    let feedBtn = this.add.image(180, 620, 'sugarcane').setInteractive();
+    feedBtn.on('pointerdown', () => {
+        feedSugarcane(this);
+    });
+}
 
-        let petData = {
-            streak: 258,
-            level: 12,
-            exp: 0,
-            maxExp: 3000,
-            lastFedDate: "",
-            latestAction: "ဆင်ပေါက်မလေး စတင်ပါပြီ 💕"
-        };
+function feedSugarcane(scene) {
+    if (!hasFedToday) {
+        currentExp += 1000;
+        streakDays += 1;
+        hasFedToday = true;
 
-        // 2. Phaser Game Config (စခရင်အပြည့် အလိုအလျောက်ညှိပေးသည့် စနစ်)
-        const config = {
-            type: Phaser.AUTO,
-            parent: 'game-container',
-            width: window.innerWidth,
-            height: window.innerHeight,
-            scale: {
-                mode: Phaser.Scale.RESIZE,
-                autoCenter: Phaser.Scale.CENTER_BOTH
-            },
-            backgroundColor: '#8ed0f8',
-            scene: {
-                preload: preload,
-                create: create,
-                update: update
-            }
-        };
+        // EXP နှင့် ရက်တိုးခြင်း update ပြုလုပ်ခြင်း
+        expText.setText(`EXP: ${currentExp}`);
+        streakText.setText(`🔥 ${streakDays} ရက်`);
 
-        const game = new Phaser.Game(config);
-        let sceneContext;
-        let elephantContainer;
-        let streakText, levelText, expText, expBarFill, statusText;
-        let caneIcon;
+        // ဆင်စားသောက်သည့် Animation နှင့် ကြီးထွားလာမှု (Scale up)
+        scene.tweens.add({
+            targets: elephant,
+            scaleX: elephant.scaleX + 0.05,
+            scaleY: elephant.scaleY + 0.05,
+            duration: 500,
+            yoyo: true,
+            repeat: 2
+        });
+    }
+}
 
-        function preload() {}
+function showHeartAnimation(scene, x, y) {
+    let heart = scene.add.image(x, y, 'heart');
+    scene.tweens.add({
+        targets: heart,
+        y: y - 50,
+        alpha: 0,
+        duration: 800,
+        onComplete: () => heart.destroy()
+    });
+}
 
-        function create() {
-            sceneContext = this;
-            const w = this.scale.width;
-            const h = this.scale.height;
-
-            // မြက်ခင်းပြင် နောက်ခံဆွဲခြင်း
-            const grass = this.add.graphics();
-            grass.fillStyle(0x78c27a, 1);
-            grass.fillRoundedRect(0, h * 0.45, w, h * 0.55, 30);
-
-            // UI - Header Cards
-            const headerY = 40;
-            
-            // Streak Badge
-            const streakBg = this.add.graphics();
-            streakBg.fillStyle(0xffffff, 0.9);
-            streakBg.fillRoundedRect(16, headerY, 130, 40, 20);
-            streakText = this.add.text(81, headerY + 20, `🔥 258 Days`, {
-                fontFamily: 'sans-serif',
-                fontSize: '15px',
-                fontStyle: 'bold',
-                color: '#f76707'
-            }).setOrigin(0.5);
-
-            // Level Badge
-            const levelBg = this.add.graphics();
-            levelBg.fillStyle(0xffffff, 0.9);
-            levelBg.fillRoundedRect(w - 146, headerY, 130, 40, 20);
-            levelText = this.add.text(w - 81, headerY + 20, `Level 12`, {
-                fontFamily: 'sans-serif',
-                fontSize: '15px',
-                fontStyle: 'bold',
-                color: '#7048e8'
-            }).setOrigin(0.5);
-
-            // ဆင်ပေါက်မလေး Graphic တည်ဆောက်ခြင်း
-            elephantContainer = this.add.container(w / 2, h * 0.52);
-
-            const petG = this.add.graphics();
-            // အရိပ်
-            petG.fillStyle(0x000000, 0.15);
-            petG.fillEllipse(0, 80, 160, 26);
-            // ခြေထောက်များ
-            petG.fillStyle(0xffb7c5, 1);
-            petG.lineStyle(3, 0xf08098, 1);
-            petG.fillRoundedRect(-45, 45, 24, 40, 10);
-            petG.strokeRoundedRect(-45, 45, 24, 40, 10);
-            petG.fillRoundedRect(20, 45, 24, 40, 10);
-            petG.strokeRoundedRect(20, 45, 24, 40, 10);
-            // ခန္ဓာကိုယ်
-            petG.fillEllipse(5, 20, 130, 100);
-            petG.strokeEllipse(5, 20, 130, 100);
-            // နားရွက်
-            petG.fillStyle(0xffa4b6, 1);
-            petG.fillEllipse(30, -20, 32, 46);
-            petG.strokeEllipse(30, -20, 32, 46);
-            // ခေါင်း
-            petG.fillStyle(0xffb7c5, 1);
-            petG.fillCircle(-25, -15, 48);
-            petG.strokeCircle(-25, -15, 48);
-            // မျက်လုံး
-            petG.fillStyle(0x343a40, 1);
-            petG.fillCircle(-40, -20, 6);
-            petG.fillStyle(0xffffff, 1);
-            petG.fillCircle(-42, -22, 2.5);
-            // ပါးနီ
-            petG.fillStyle(0xff809b, 0.6);
-            petG.fillEllipse(-42, -5, 10, 6);
-            // နှာမောင်း
-            petG.lineStyle(14, 0xffb7c5, 1);
-            petG.beginPath();
-            petG.moveTo(-50, -5);
-            petG.lineTo(-65, 15);
-            petG.strokePath();
-
-            const bow = this.add.text(-40, -65, '🌸', { fontSize: '24px' }).setOrigin(0.5);
-            elephantContainer.add([petG, bow]);
-            elephantContainer.setSize(180, 180);
-
-            // လက်ဖြင့် ပွတ်သပ်ထိတွေ့ခြင်း (Petting Swipe Gesture)
-            this.input.on('pointermove', function (pointer) {
-                if (pointer.isDown) {
-                    showHeart(pointer.x, pointer.y);
-                    sceneContext.tweens.add({
-                        targets: elephantContainer,
-                        scaleX: 1.05,
-                        scaleY: 0.95,
-                        duration: 70,
-                        yoyo: true
-                    });
-                }
-            });
-
-            // အစာကျွေးရန် ကြံချောင်း Icon
-            caneIcon = this.add.text(w / 2, h * 0.4, '🎋', { fontSize: '48px' })
-                .setOrigin(0.5)
-                .setAlpha(0);
-
-            // အောက်ခြေ Dashboard UI (EXP, Status, Cane Button)
-            const bottomBox = this.add.graphics();
-            bottomBox.fillStyle(0xffffff, 0.92);
-            bottomBox.fillRoundedRect(16, h - 220, w - 32, 200, 24);
-
-            statusText = this.add.text(w / 2, h - 195, 'ဆင်ပေါက်မလေးကို လက်ဖြင့်ပွတ်သပ် ချစ်ပေးပါ 💕', {
-                fontFamily: 'sans-serif',
-                fontSize: '13px',
-                color: '#495057'
-            }).setOrigin(0.5);
-
-            // EXP Progress Bar
-            expText = this.add.text(32, h - 165, 'EXP 0 / 3000', {
-                fontFamily: 'sans-serif',
-                fontSize: '12px',
-                fontStyle: 'bold',
-                color: '#495057'
-            });
-
-            const expBg = this.add.graphics();
-            expBg.fillStyle(0xe9ecef, 1);
-            expBg.fillRoundedRect(32, h - 145, w - 64, 14, 7);
-
-            expBarFill = this.add.graphics();
-
-            // အစာကျွေးခလုတ်
-            const btnY = h - 75;
-            const btnG = this.add.graphics();
-            btnG.fillStyle(0x69db7c, 1);
-            btnG.fillRoundedRect(32, btnY - 26, w - 64, 52, 22);
-
-            const btnText = this.add.text(w / 2, btnY, '🎋 ကြံချောင်းကျွေးမည် (+1000 EXP)', {
-                fontFamily: 'sans-serif',
-                fontSize: '16px',
-                fontStyle: 'bold',
-                color: '#204d16'
-            }).setOrigin(0.5);
-
-            const btnZone = this.add.zone(w / 2, btnY, w - 64, 52).setInteractive({ cursor: 'pointer' });
-            btnZone.on('pointerdown', function () {
-                feedCane();
-            });
-
-            // Firebase ဒေတာ ချိတ်ဆက်ဖတ်ယူခြင်း
-            petRef.on("value", (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    petData = Object.assign(petData, data);
-                    updateUI(w, h);
-                } else {
-                    petRef.set(petData);
-                }
-            });
-        }
-
-        function showHeart(x, y) {
-            if (Math.random() > 0.4) return;
-            const heart = sceneContext.add.text(x, y, '💖', { fontSize: '24px' }).setOrigin(0.5);
-            sceneContext.tweens.add({
-                targets: heart,
-                y: y - 70,
-                alpha: 0,
-                duration: 700,
-                onComplete: () => heart.destroy()
-            });
-        }
-
-        function updateUI(w, h) {
-            streakText.setText(`🔥 ${petData.streak || 258} Days`);
-            levelText.setText(`Level ${petData.level || 12}`);
-            statusText.setText(petData.latestAction || 'ဆင်ပေါက်မလေး ပျော်ရွှင်နေပါသည်');
-
-            const cur = petData.exp || 0;
-            const max = petData.maxExp || 3000;
-            expText.setText(`EXP ${cur} / ${max}`);
-
-            const fullW = w - 64;
-            const fillW = Math.min(fullW, (cur / max) * fullW);
-
-            expBarFill.clear();
-            expBarFill.fillStyle(0xf06595, 1);
-            if (fillW > 0) {
-                expBarFill.fillRoundedRect(32, h - 145, fillW, 14, 7);
-            }
-        }
-
-        function feedCane() {
-            const d = new Date();
-            const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-            let newStreak = petData.streak || 258;
-            let newExp = (petData.exp || 0) + 1000;
-            let newLevel = petData.level || 12;
-            let newMax = petData.maxExp || 3000;
-            let msg = "";
-
-            // ကြံချောင်း စားသည့် Animation
-            caneIcon.setAlpha(1).setScale(1.2).setPosition(window.innerWidth / 2, window.innerHeight * 0.4);
-            sceneContext.tweens.add({
-                targets: caneIcon,
-                y: window.innerHeight * 0.5,
-                scale: 0.4,
-                duration: 500,
-                onComplete: () => caneIcon.setAlpha(0)
-            });
-
-            sceneContext.tweens.add({
-                targets: elephantContainer,
-                y: elephantContainer.y - 15,
-                scaleY: 0.92,
-                duration: 120,
-                yoyo: true,
-                repeat: 3
-            });
-
-            if (petData.lastFedDate !== today) {
-                newStreak += 1;
-                if (newExp >= newMax) {
-                    newLevel += 1;
-                    newExp -= newMax;
-                    newMax += 1000;
-                    msg = `ကြံကျွေးပြီး Level ${newLevel} သို့ တက်လှမ်းပါပြီ! 🎉`;
-                } else {
-                    msg = `ဒီနေ့အတွက် ကြံချောင်း ကျွေးခဲ့ပါသည် (Streak ${newStreak} ရက်)`;
-                }
-                petRef.update({
-                    streak: newStreak,
-                    exp: newExp,
-                    maxExp: newMax,
-                    level: newLevel,
-                    lastFedDate: today,
-                    latestAction: msg
-                });
-            } else {
-                if (newExp >= newMax) {
-                    newLevel += 1;
-                    newExp -= newMax;
-                    newMax += 1000;
-                }
-                msg = `ကြံချောင်းထပ်ကျွေးပါသည် (+1000 EXP)`;
-                petRef.update({
-                    exp: newExp,
-                    maxExp: newMax,
-                    level: newLevel,
-                    latestAction: msg
-                });
-            }
-        }
-
-        function update() {}
-    </script>
-</body>
-</html>
+function update() {}
