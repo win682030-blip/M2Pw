@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.53.1/phaser.min.js"></script>
+</head>
+<body>
+
+    <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        const game = new Phaser.Game(config);
+
+        function preload() {
+            // ပုံတွေ၊ အသံတွေကို ဒီမှာ load လုပ်ရပါမယ်
+        }
+
+        function create() {
+            // ဂိမ်းကို စတင် တည်ဆောက်တဲ့ နေရာဖြစ်ပါတယ်
+        }
+
+        function update() {
+            // အမြဲတမ်း run နေမယ့် logic တွေ ရေးရပါမယ်
+        }
+    </script>
+
+</body>
+</html>
